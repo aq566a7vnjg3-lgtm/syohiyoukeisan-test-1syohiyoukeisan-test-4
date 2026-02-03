@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>諸費用 自動計算（奈良版/京都版）</title>
+<style>
+  :root{
+    --bg:#fbf6b8;
+    --card:#ffffff;
+    --border:#d5d9df;
+    --muted:#5b6470;
+    --head:#1f4fbf;
+    --chip:#eef2ff;
+    --sec:#f3f6ff;
+    --sub:#e8f1ff;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
+    background:var(--bg);
+    color:#111;
+  }
+  .wrap{ max-width:980px; margin:14px auto 28px; padding:0 12px; }
+  .top{
+    display:flex; flex-wrap:wrap; gap:10px;
+    align-items:flex-start; justify-content:space-between;
+    margin-bottom:12px;
+  }
+  .btnRow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn{
+    border:1px solid #b8bec9;
+    background:#fff;
+    padding:10px 12px;
+    border-radius:12px;
+    cursor:pointer;
+    font-weight:700;
+    min-height:42px;
+  }
+  .hint{
+    font-size:12px; color:var(--muted);
+    line-height:1.4;
+    max-width:520px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  @media (min-width:720px){
+    .grid{ grid-template-columns:repeat(2,1fr); }
+    .span2{ grid-column:span 2; }
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:12px;
+    box-shadow:0 1px 0 rgba(0,0,0,.03);
+  }
+  .card h3{
+    margin:0 0 8px;
+    font-size:15px;
+    color:var(--head);
+    display:flex; gap:8px; align-items:center;
+  }
+  .chip{
+    background:var(--chip);
+    border:1px solid #d9ddff;
+    color:#2b35a6;
+    border-radius:999px;
+    padding:2px 8px;
+    font-size:12px;
+    font-weight:800;
+  }
+
+  .options{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+  }
+  @media (min-width:520px){
+    .options.cols2{ grid-template-columns:repeat(2,1fr); }
+    .options.cols3{ grid-template-columns:repeat(3,1fr); }
+  }
+
+  .opt{
+    position:relative;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px 10px;
+    display:flex; gap:10px; align-items:center;
+    cursor:pointer;
+    background:#fff;
+    min-height:46px;
+  }
+  .opt input{ width:20px; height:20px; }
+  .opt span{ font-size:14px; font-weight:650; }
+  .opt small{ display:block; font-size:12px; color:var(--muted); font-weight:600; margin-top:2px; }
+  .opt:has(input:checked){
+    border-color:#7ea1ff;
+    box-shadow:0 0 0 3px rgba(126,161,255,.22);
+  }
+
+  .disabled{ opacity:.5; pointer-events:none; }
+  .noteSmall{ font-size:12px; color:var(--muted); margin-top:6px; line-height:1.4; }
+
+  .result{
+    margin-top:12px;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:12px;
+  }
+  .resultTop{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 14px;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .total{ font-size:20px; font-weight:900; }
+  .status{ font-size:13px; font-weight:750; }
+
+  /* Mobile-first: list-like */
+  .rows{ display:grid; gap:10px; }
+  .row{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px;
+    background:#fff;
+  }
+  .row.sec{ background:var(--sec); font-weight:900; border-style:dashed; }
+  .row.sub{ background:var(--sub); font-weight:900; }
+  .rowHeader{
+    display:flex; justify-content:space-between; gap:10px; align-items:center;
+    margin-bottom:6px;
+  }
+  .label{ font-weight:850; }
+  .yen{ font-variant-numeric: tabular-nums; white-space:nowrap; font-weight:900; }
+  .memo{ font-size:12px; color:var(--muted); line-height:1.4; }
+
+  /* Desktop: table */
+  .tblwrap{ display:none; overflow:auto; border:1px solid var(--border); border-radius:12px; }
+  table{ width:100%; border-collapse:collapse; min-width:860px; background:#fff; font-size:13px; }
+  thead th{ background:#eef2ff; border:1px solid var(--border); padding:10px; text-align:left; }
+  td{ border:1px solid var(--border); padding:9px 10px; vertical-align:top; }
+  td.yen{ text-align:right; }
+
+  @media (min-width:900px){
+    .rows{ display:none; }
+    .tblwrap{ display:block; }
+  }
+
+  .pillTitle{
+    display:inline-flex; align-items:center; gap:8px;
+    font-weight:900; color:#243048;
+  }
+  .pillTitle b{ color:#1f4fbf; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="btnRow">
+      <button class="btn" id="resetBtn" type="button">選択を解除</button>
+      <button class="btn" id="recalcBtn" type="button">再計算</button>
+    </div>
+    <div class="hint" id="ruleHint"></div>
+  </div>
+
+  <form id="feeForm">
+    <div class="grid">
+
+      <!-- ★追加：冒頭でバージョン選択 -->
+      <section class="card span2">
+        <h3><span class="chip">0</span> バージョン選択</h3>
+        <div class="options cols2">
+          <label class="opt"><input type="radio" name="version" value="奈良版" checked><span>奈良県バージョン</span><small>県外判定：奈良県以外</small></label>
+          <label class="opt"><input type="radio" name="version" value="京都版"><span>京都府バージョン</span><small>県外判定：京都府以外 / 普通車は全て書類代行</small></label>
+        </div>
+        <div class="noteSmall">
+          ※バージョンを切り替えると「申請方法ルール」と「県外費用の判定」が切り替わります。
+        </div>
+      </section>
+
+      <section class="card">
+        <h3><span class="chip">①</span> 車種</h3>
+        <div class="options cols2">
+          <label class="opt"><input type="radio" name="car" value="普通車"><span>普通車（小型）</span></label>
+          <label class="opt"><input type="radio" name="car" value="軽自動車"><span>軽自動車（軽四）</span></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3><span class="chip">②</span> 都道府県</h3>
+        <div class="options cols2">
+          <label class="opt"><input type="radio" name="pref" value="奈良県"><span>奈良県</span></label>
+          <label class="opt"><input type="radio" name="pref" value="京都府"><span>京都府</span></label>
+          <label class="opt"><input type="radio" name="pref" value="大阪府"><span>大阪府</span></label>
+          <label class="opt"><input type="radio" name="pref" value="滋賀県"><span>滋賀県</span></label>
+          <label class="opt"><input type="radio" name="pref" value="和歌山県"><span>和歌山県</span></label>
+          <label class="opt"><input type="radio" name="pref" value="三重県"><span>三重県</span></label>
+          <label class="opt"><input type="radio" name="pref" value="兵庫県"><span>兵庫県</span></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3><span class="chip">③</span> 車庫証明</h3>
+        <div class="options cols2">
+          <label class="opt"><input type="radio" name="shakoNeed" value="必要"><span>必要</span></label>
+          <label class="opt"><input type="radio" name="shakoNeed" value="不要"><span>不要</span></label>
+        </div>
+        <div class="noteSmall">※軽自動車で「必要」の場合のみ車庫証明代行費用 16,800円を加算（普通車は不要）</div>
+      </section>
+
+      <section class="card">
+        <h3><span class="chip">④</span> 申請方法</h3>
+        <div class="options cols2">
+          <label class="opt" id="applyOSSLabel"><input type="radio" name="apply" value="OSS" id="applyOSS"><span>OSS</span></label>
+          <label class="opt"><input type="radio" name="apply" value="書類代行" id="applyDocs"><span>書類代行</span></label>
+        </div>
+        <div class="noteSmall" id="applyLockNote" style="display:none;"></div>
+      </section>
+
+      <section class="card span2">
+        <h3><span class="chip">⑤</span> 標板 / <span class="chip">⑥</span> 図柄・方式</h3>
+        <div class="options cols3">
+          <label class="opt"><input type="radio" name="plate" value="一般番号"><span>一般番号</span></label>
+          <label class="opt"><input type="radio" name="plate" value="希望番号"><span>希望番号</span></label>
+          <label class="opt"><input type="radio" name="plate" value="希望図柄番号"><span>希望図柄番号</span></label>
+        </div>
+
+        <div style="height:10px;"></div>
+
+        <div class="options cols2">
+          <label class="opt"><input type="radio" name="plateStyle" value="ペイント"><span>ペイント</span></label>
+          <label class="opt"><input type="radio" name="plateStyle" value="字光式"><span>字光式</span><small>※図柄は不可</small></label>
+        </div>
+
+        <div style="height:10px;"></div>
+
+        <div id="patternBox" class="disabled">
+          <div class="noteSmall" style="margin:0 0 8px;">図柄（⑤が希望図柄番号のとき）</div>
+          <div class="options cols3">
+            <label class="opt"><input type="radio" name="pattern" value="ご当地"><span>ご当地</span></label>
+            <label class="opt"><input type="radio" name="pattern" value="全国図柄"><span>全国図柄</span></label>
+            <label class="opt"><input type="radio" name="pattern" value="万博図柄"><span>万博図柄</span></label>
+            <label class="opt"><input type="radio" name="pattern" value="ラグビー"><span>ラグビー</span></label>
+            <label class="opt"><input type="radio" name="pattern" value="オリンピック"><span>オリンピック</span></label>
+          </div>
+        </div>
+
+        <div class="noteSmall">※字光式は「一般番号/希望番号」のみ。希望図柄番号を選んだら方式は自動でペイントになります。</div>
+      </section>
+
+      <section class="card span2">
+        <h3><span class="chip">⑦</span> 下取り / <span class="chip">⑧</span> 所有者 / <span class="chip">⑨</span> 残債</h3>
+
+        <div class="options cols2">
+          <label class="opt"><input type="radio" name="trade" value="あり"><span>下取りあり</span></label>
+          <label class="opt"><input type="radio" name="trade" value="なし"><span>下取りなし</span></label>
+        </div>
+
+        <div style="height:10px;"></div>
+
+        <div id="ownerBox">
+          <div class="noteSmall" style="margin:0 0 8px;">所有者（下取りありのとき）</div>
+          <div class="options cols2">
+            <label class="opt"><input type="radio" name="owner" value="お客様"><span>所有権 お客様</span></label>
+            <label class="opt"><input type="radio" name="owner" value="信販会社"><span>所有権 信販会社</span></label>
+          </div>
+        </div>
+
+        <div style="height:10px;"></div>
+
+        <div id="loanBox">
+          <div class="noteSmall" style="margin:0 0 8px;">残債（所有権が信販会社のとき）</div>
+          <div class="options cols2">
+            <label class="opt"><input type="radio" name="loan" value="あり"><span>残債あり</span></label>
+            <label class="opt"><input type="radio" name="loan" value="なし"><span>残債なし</span></label>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="result">
+      <div class="resultTop">
+        <div class="total">合計：<span id="totalYen">0</span> 円</div>
+        <div class="status" id="statusText">必須項目を選択してください</div>
+      </div>
+
+      <!-- Mobile list -->
+      <div class="rows" id="resultRows"></div>
+
+      <!-- Desktop table -->
+      <div class="tblwrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:44%;">項目</th>
+              <th class="yen" style="width:18%;">金額</th>
+              <th style="width:38%;">備考</th>
+            </tr>
+          </thead>
+          <tbody id="resultTbody"></tbody>
+          <tfoot>
+            <tr>
+              <td>非課税分小計</td>
+              <td class="yen" id="nontaxSubtotalYen">0</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="hint" style="margin-top:10px;">
+        ※非課税：車庫証紙 / 下取車諸手続 / 図柄寄付金（登録証紙・下取証紙は表示しません）<br>
+        ※課税分の「R発行費用/振込手数料」に、必要時のみ残債手数料(880円)を合算して1行表示します
+      </div>
+    </div>
+  </form>
+
+</div>
+
+<script>
+/** ========= 料金表 ========= **/
+function typeKeyFromCar(car){ return (car === "軽自動車") ? "軽四" : "小型"; }
+const APPLY_FEE = { "OSS": 41000, "書類代行": 24500 };
+const KENGAI_FEE = 10000;
+const SHAKO_DAIKO_KEI_NEED = 16800;
+
+const SHAKO_SHOSHI = {
+  "奈良県": { "軽四": 0, "小型": 2100 },
+  "京都府": { "軽四": 0, "小型": 2280 },
+  "大阪府": { "軽四": 0, "小型": 2200 },
+  "滋賀県": { "軽四": 0, "小型": 2250 },
+  "和歌山県": { "軽四": 0, "小型": 2100 },
+  "三重県": { "軽四": 0, "小型": 2200 },
+  "兵庫県": { "軽四": 0, "小型": 2200 }
+};
+
+const PLATE_PAINT = {
+  "軽四": {
+    "奈良県": { "一般番号": 2180, "希望番号": 6060, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11400, "全国図柄": 11400, "万博図柄": 11400 },
+    "京都府": { "一般番号": 2180, "希望番号": 5460, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11050, "全国図柄": 11050, "万博図柄": 11050 },
+    "大阪府": { "一般番号": 2000, "希望番号": 5500, "ラグビー": 8040, "オリンピック": 8310, "ご当地": 10200, "全国図柄": 10200, "万博図柄": 10200 },
+    "滋賀県": { "一般番号": 2180, "希望番号": 5720, "ラグビー": 8860, "オリンピック": 9160, "ご当地": 11460, "全国図柄": 11460, "万博図柄": 11460 },
+    "和歌山県": { "一般番号": 2180, "希望番号": 6040, "ラグビー": 8860, "オリンピック": 9160, "ご当地": null,  "全国図柄": 11400, "万博図柄": 11400 },
+    "三重県": { "一般番号": 2200, "希望番号": 6000, "ラグビー": 7980, "オリンピック": 8240, "ご当地": 10800, "全国図柄": 10800, "万博図柄": 10800 },
+    "兵庫県": { "一般番号": 2200, "希望番号": 5800, "ラグビー": 8040, "オリンピック": 8310, "ご当地": null,  "全国図柄": 11400, "万博図柄": 11400 }
+  },
+  "小型": {
+    "奈良県": { "一般番号": 1990, "希望番号": 5510, "ラグビー": 8190, "オリンピック": 8490, "ご当地": 10370, "全国図柄": 10370, "万博図柄": 10370 },
+    "京都府": { "一般番号": 1990, "希望番号": 4970, "ラグビー": 8190, "オリンピック": 8500, "ご当地": 10050, "全国図柄": 10050, "万博図柄": 10050 },
+    "大阪府": { "一般番号": 1900, "希望番号": 5300, "ラグビー": 7830, "オリンピック": 8110, "ご当地": 9800,  "全国図柄": 9800,  "万博図柄": 9800 },
+    "滋賀県": { "一般番号": 1990, "希望番号": 5200, "ラグビー": 8190, "オリンピック": 8490, "ご当地": 10420, "全国図柄": 10420, "万博図柄": 10420 },
+    "和歌山県": { "一般番号": 1950, "希望番号": 5350, "ラグビー": 8180, "オリンピック": 8470, "ご当地": null,  "全国図柄": 10360, "万博図柄": 10360 },
+    "三重県": { "一般番号": 1980, "希望番号": 5440, "ラグビー": 7370, "オリンピック": 7620, "ご当地": 9820,  "全国図柄": 9820,  "万博図柄": 9820 },
+    "兵庫県": { "一般番号": 1990, "希望番号": 5300, "ラグビー": 7820, "オリンピック": 8100, "ご当地": null,  "全国図柄": 10400, "万博図柄": 10400 }
+  }
+};
+
+const PLATE_JIKOU = {
+  "軽四": {
+    "奈良県": { "一般番号": 9560, "希望番号": 11710 },
+    "京都府": { "一般番号": 9440, "希望番号": 11590 },
+    "大阪府": { "一般番号": 8700, "希望番号": 10100 },
+    "滋賀県": { "一般番号": 9560, "希望番号": 11710 },
+    "和歌山県": { "一般番号": 9560, "希望番号": 11710 },
+    "三重県": { "一般番号": 7900, "希望番号": 9700 },
+    "兵庫県": { "一般番号": 8700, "希望番号": 10600 }
+  },
+  "小型": {
+    "奈良県": { "一般番号": 6860, "希望番号": 10030 },
+    "京都府": { "一般番号": 6850, "希望番号": 9700 },
+    "大阪府": { "一般番号": 5800, "希望番号": 8300 },
+    "滋賀県": { "一般番号": 6910, "希望番号": 9830 },
+    "和歌山県": { "一般番号": 6700, "希望番号": 9070 },
+    "三重県": { "一般番号": 5800, "希望番号": 9440 },
+    "兵庫県": { "一般番号": 6820, "希望番号": 10560 }
+  }
+};
+
+const HOPE_FEE = { "小型": 11000, "軽四": 11000 };
+const PATTERN_FEE = { "小型": 20000, "軽四": 17000 };
+const PATTERN_DONATION = 1000;
+const JIKOU_TOOL = 27500;
+
+const TRADEIN_DAIKO = 23000;
+const TRADEIN_PROC = 500;
+
+const LOAN_FEE = 880;
+const R_ISSUE = 2200;
+
+// 登録証紙（表示しない／普通車の標板代にのみ合算）
+const REG_STAMP = { "OSS": 2200, "小型": 2800, "軽四": 1900 };
+
+/** ========= UI / 計算 ========= **/
+const yenFmt = n => new Intl.NumberFormat("ja-JP").format(Math.max(0, Math.round(n||0)));
+const form = document.getElementById("feeForm");
+const patternBox = document.getElementById("patternBox");
+const statusText = document.getElementById("statusText");
+const totalYenEl = document.getElementById("totalYen");
+const tbody = document.getElementById("resultTbody");
+const rowsEl = document.getElementById("resultRows");
+const nontaxEl = document.getElementById("nontaxSubtotalYen");
+const ruleHint = document.getElementById("ruleHint");
+
+const applyOSS = document.getElementById("applyOSS");
+const applyOSSLabel = document.getElementById("applyOSSLabel");
+const applyLockNote = document.getElementById("applyLockNote");
+const ownerBox = document.getElementById("ownerBox");
+const loanBox = document.getElementById("loanBox");
+
+function getVal(name){
+  const el = form.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : null;
+}
+function setChecked(name, value){
+  const el = form.querySelector(`input[name="${name}"][value="${value}"]`);
+  if(el) el.checked = true;
+}
+function clearGroup(name){
+  form.querySelectorAll(`input[name="${name}"]`).forEach(r=>r.checked=false);
+}
+function setGroupDisabled(name, disabled){
+  form.querySelectorAll(`input[name="${name}"]`).forEach(r=>r.disabled = !!disabled);
+}
+function escapeHtml(str){
+  return String(str ?? "")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function setPatternEnabled(enabled){
+  patternBox.classList.toggle("disabled", !enabled);
+  if(!enabled) clearGroup("pattern");
+}
+function enforcePlateRules(){
+  const plate = getVal("plate");
+  const style = getVal("plateStyle");
+  const needPattern = (plate === "希望図柄番号");
+  setPatternEnabled(needPattern);
+  if(needPattern && style === "字光式"){
+    setChecked("plateStyle","ペイント");
+  }
+}
+
+/**
+ * ★ここが今回の要件
+ * - バージョンにより「基準府県」と「普通車の申請方法ルール」を切替
+ *   奈良版：基準=奈良県／普通車&奈良県=OSS自動、奈良県以外=書類代行固定
+ *   京都版：基準=京都府／普通車は全て書類代行（OSS不可）
+ * - 県外費用は「基準府県以外」を県外として +10,000
+ */
+function getBasePrefByVersion(){
+  return (getVal("version") === "京都版") ? "京都府" : "奈良県";
+}
+function setRuleHint(){
+  const v = getVal("version") || "奈良版";
+  const base = getBasePrefByVersion();
+  if(v === "京都版"){
+    ruleHint.innerHTML =
+      `現在：<span class="pillTitle"><b>京都府バージョン</b></span><br>
+       ・普通車は<strong>すべて書類代行</strong><br>
+       ・県外判定：<strong>${base}以外</strong>は県外費用 10,000円`;
+  } else {
+    ruleHint.innerHTML =
+      `現在：<span class="pillTitle"><b>奈良県バージョン</b></span><br>
+       ・普通車＋奈良県は<strong>OSS自動選択</strong><br>
+       ・県外判定：<strong>${base}以外</strong>は県外費用 10,000円`;
+  }
+}
+
+function updateApplyRules(){
+  const car = getVal("car");
+  const pref = getVal("pref");
+  const version = getVal("version") || "奈良版";
+  const basePref = getBasePrefByVersion();
+
+  setRuleHint();
+
+  if(!car || !pref){
+    applyOSS.disabled = false;
+    applyOSSLabel.classList.remove("disabled");
+    applyLockNote.style.display = "none";
+    return;
+  }
+
+  const isBase = (pref === basePref);
+  const isOut = !isBase;
+  let lockMsg = "";
+
+  // ---- 普通車ルール（バージョンで違う） ----
+  if(car === "普通車"){
+    if(version === "京都版"){
+      // ★京都版：普通車は常に書類代行
+      applyOSS.disabled = true;
+      applyOSSLabel.classList.add("disabled");
+      setChecked("apply","書類代行");
+      lockMsg = `※京都版：普通車は書類代行固定（県外判定は${basePref}基準）`;
+    } else {
+      // ★奈良版：奈良県ならOSS自動、奈良県以外は書類代行固定
+      if(isBase){
+        applyOSS.disabled = false;
+        applyOSSLabel.classList.remove("disabled");
+        setChecked("apply","OSS");
+        lockMsg = "※奈良版：普通車＋奈良県はOSSを自動選択";
+      } else {
+        applyOSS.disabled = true;
+        applyOSSLabel.classList.add("disabled");
+        setChecked("apply","書類代行");
+        lockMsg = `※奈良版：普通車で奈良県以外は書類代行固定（県外費用10,000円加算）`;
+      }
+    }
+  }
+
+  // ---- 軽自動車ルール（両版共通：基準府県以外は書類代行固定） ----
+  if(car === "軽自動車"){
+    if(isOut){
+      applyOSS.disabled = true;
+      applyOSSLabel.classList.add("disabled");
+      setChecked("apply","書類代行");
+      lockMsg = `※軽自動車で${basePref}以外は書類代行固定（県外費用10,000円加算）`;
+    } else {
+      applyOSS.disabled = false;
+      applyOSSLabel.classList.remove("disabled");
+      lockMsg = `※軽自動車＋${basePref}はOSS/書類代行を選択可能`;
+      if(!getVal("apply")) setChecked("apply","書類代行");
+    }
+  }
+
+  applyLockNote.style.display = lockMsg ? "block" : "none";
+  applyLockNote.textContent = lockMsg;
+}
+
+function updateConditionalUI(){
+  const trade = getVal("trade");
+  const owner = getVal("owner");
+
+  updateApplyRules();
+  enforcePlateRules();
+
+  if(trade === "なし"){
+    clearGroup("owner"); clearGroup("loan");
+    setGroupDisabled("owner", true);
+    setGroupDisabled("loan", true);
+    ownerBox.classList.add("disabled");
+    loanBox.classList.add("disabled");
+    return;
+  }
+
+  setGroupDisabled("owner", false);
+  ownerBox.classList.remove("disabled");
+
+  if(owner === "お客様"){
+    clearGroup("loan");
+    setGroupDisabled("loan", true);
+    loanBox.classList.add("disabled");
+  } else if(owner === "信販会社"){
+    setGroupDisabled("loan", false);
+    loanBox.classList.remove("disabled");
+  } else {
+    clearGroup("loan");
+    setGroupDisabled("loan", true);
+    loanBox.classList.add("disabled");
+  }
+}
+
+function buildRowCard(label, yen, memo){
+  return `
+    <div class="row">
+      <div class="rowHeader">
+        <div class="label">${escapeHtml(label)}</div>
+        <div class="yen">${yen ? yenFmt(yen) : "-"}</div>
+      </div>
+      ${memo ? `<div class="memo">${escapeHtml(memo)}</div>` : ``}
+    </div>
+  `;
+}
+function buildSection(title){
+  return `<div class="row sec"><div class="label">${escapeHtml(title)}</div></div>`;
+}
+function buildSub(label, yen){
+  return `
+    <div class="row sub">
+      <div class="rowHeader">
+        <div class="label">${escapeHtml(label)}</div>
+        <div class="yen">${yenFmt(yen)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function calc(){
+  updateConditionalUI();
+
+  const version = getVal("version") || "奈良版";
+  const basePref = getBasePrefByVersion();
+
+  const car = getVal("car");
+  const pref = getVal("pref");
+  const shakoNeed = getVal("shakoNeed");
+  const apply = getVal("apply");
+  const plate = getVal("plate");
+  const plateStyle = getVal("plateStyle") || "ペイント";
+  const pattern = getVal("pattern");
+  const trade = getVal("trade");
+  const owner = getVal("owner");
+  const loan = getVal("loan");
+
+  const needPattern = (plate === "希望図柄番号");
+
+  const required = ["version","car","pref","shakoNeed","apply","plate","plateStyle","trade"];
+  if(trade === "あり") required.push("owner");
+  if(trade === "あり" && owner === "信販会社") required.push("loan");
+  if(needPattern) required.push("pattern");
+
+  const missing = required.filter(k => !getVal(k));
+  if(missing.length){
+    statusText.textContent = "未選択があります（必須項目を選択してください）";
+    statusText.style.color = "#b00020";
+  } else {
+    statusText.textContent = "計算OK";
+    statusText.style.color = "#1b7f2a";
+  }
+
+  const typeKey = typeKeyFromCar(car);
+  const isBase = (pref === basePref);
+  const isOut = !!pref && !isBase;
+
+  const rows = [];
+  const push = (label, yen, note="", taxable=true)=> rows.push({label, yen:Number(yen||0), note, taxable});
+
+  // 登録代行費用（県外判定：基準府県以外）
+  if(apply){
+    let base = APPLY_FEE[apply] ?? 0;
+    if(isOut){
+      base += KENGAI_FEE;
+      push("登録代行費用", base, `（県外費用 10,000円含む：基準=${basePref}）`, true);
+    } else {
+      push("登録代行費用", base, `（基準=${basePref}）`, true);
+    }
+  }
+
+  // 車庫証明
+  if(shakoNeed === "必要"){
+    if(car === "軽自動車"){
+      push("車庫証明代行費用", SHAKO_DAIKO_KEI_NEED, "（軽自動車＋必要）", true);
+    } else {
+      push("車庫証明代行費用", 0, "（普通車は不要）", true);
+    }
+    const sh = SHAKO_SHOSHI?.[pref]?.[typeKey];
+    push("車庫証紙", sh ?? 0, "", false);
+  } else {
+    push("車庫証明代行費用", 0, "（車庫証明不要）", true);
+    push("車庫証紙", 0, "（車庫証明不要）", false);
+  }
+
+  // 普通車は登録証紙を標板代に合算（OSS/書類代行で差）
+  const regStampToMerge =
+    (car === "普通車" && apply)
+      ? (apply === "OSS" ? REG_STAMP["OSS"] : REG_STAMP["小型"])
+      : 0;
+
+  const plateTable = (plateStyle === "字光式") ? PLATE_JIKOU : PLATE_PAINT;
+  const plateRow = plateTable?.[typeKey]?.[pref] ?? null;
+
+  const addPlate = (label, baseValue, noteBase="")=>{
+    const merged = (baseValue ?? 0) + (regStampToMerge || 0);
+    const note = (car === "普通車" && apply && regStampToMerge)
+      ? `（登録証紙 ${yenFmt(regStampToMerge)}円を合算）`
+      : noteBase;
+    push(label, merged, note, true);
+  };
+
+  if(plate === "一般番号"){
+    const v = plateRow?.["一般番号"];
+    addPlate(`標板代（${plateStyle}・一般番号）`, v ?? 0, v==null ? "（金額未設定）" : "");
+  }
+  if(plate === "希望番号"){
+    const v = plateRow?.["希望番号"];
+    addPlate(`標板代（${plateStyle}・希望番号）`, v ?? 0, v==null ? "（金額未設定）" : "");
+    push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
+  }
+  if(plate === "希望図柄番号"){
+    const pRow = PLATE_PAINT?.[typeKey]?.[pref] ?? null;
+    const v = pRow?.[pattern];
+    addPlate(`標板代（ペイント・図柄：${pattern}）`, v ?? 0, v==null ? "（金額未設定）" : "");
+    push("希望番号手数料（希望）", HOPE_FEE[typeKey] ?? 0, "", true);
+    push("希望番号手数料（図柄）", PATTERN_FEE[typeKey] ?? 0, "", true);
+    push("図柄寄付金", PATTERN_DONATION, "", false);
+  }
+
+  if(plateStyle === "字光式"){
+    push("字光式器具（税込）", JIKOU_TOOL, "", true);
+  }
+
+  // 下取り（下取証紙は表示/計上しない）
+  if(trade === "あり"){
+    if(owner === "信販会社") push("下取代行", TRADEIN_DAIKO, "", true);
+    else push("下取代行", 0, "（所有権お客様：該当なし扱い）", true);
+    push("下取車諸手続", TRADEIN_PROC, "", false);
+  } else {
+    push("下取代行", 0, "（下取りなし）", true);
+    push("下取車諸手続", 0, "（下取りなし）", false);
+  }
+
+  // R発行費用 +（必要時）残債手数料を合算して1行
+  const loanFeeForMerge =
+    (trade === "あり" && owner === "信販会社" && loan === "あり")
+      ? LOAN_FEE
+      : 0;
+
+  const mergedFee = R_ISSUE + loanFeeForMerge;
+  const mergedNote = loanFeeForMerge ? `（残債手数料 ${yenFmt(loanFeeForMerge)}円を合算）` : "";
+  push("R発行費用/振込手数料", mergedFee, mergedNote, true);
+
+  // 集計
+  const taxable = rows.filter(r=>r.taxable);
+  const nontax = rows.filter(r=>!r.taxable);
+  const taxSum = taxable.reduce((a,b)=>a+b.yen,0);
+  const nonSum = nontax.reduce((a,b)=>a+b.yen,0);
+  const total = taxSum + nonSum;
+
+  totalYenEl.textContent = yenFmt(total);
+  nontaxEl.textContent = yenFmt(nonSum);
+
+  // Mobile cards
+  let html = "";
+  html += buildSection("課税分");
+  taxable.forEach(r=> html += buildRowCard(r.label, r.yen, r.note));
+  html += buildSub("課税分小計", taxSum);
+  html += buildSection("非課税分");
+  if(nontax.length===0) html += buildRowCard("（該当なし）", 0, "");
+  else nontax.forEach(r=> html += buildRowCard(r.label, r.yen, r.note));
+  html += buildSub("非課税分小計", nonSum);
+  rowsEl.innerHTML = html;
+
+  // Desktop table
+  tbody.innerHTML = "";
+  const addTr = (label, yen, note)=> {
+    tbody.insertAdjacentHTML("beforeend",
+      `<tr><td>${escapeHtml(label)}</td><td class="yen">${yen?yenFmt(yen):"-"}</td><td>${escapeHtml(note||"")}</td></tr>`
+    );
+  };
+  const addSec = (t)=> tbody.insertAdjacentHTML("beforeend",
+    `<tr><td colspan="3" style="background:#f3f6ff;font-weight:900;">${escapeHtml(t)}</td></tr>`
+  );
+  const addSubRow = (t, y)=> tbody.insertAdjacentHTML("beforeend",
+    `<tr><td style="background:#e8f1ff;font-weight:900;">${escapeHtml(t)}</td><td class="yen" style="background:#e8f1ff;font-weight:900;">${yenFmt(y)}</td><td style="background:#e8f1ff;"></td></tr>`
+  );
+
+  addSec("課税分");
+  taxable.forEach(r=> addTr(r.label, r.yen, r.note));
+  addSubRow("課税分小計", taxSum);
+  addSec("非課税分");
+  if(nontax.length===0) addTr("（該当なし）", 0, "");
+  else nontax.forEach(r=> addTr(r.label, r.yen, r.note));
+}
+
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  form.reset();
+  // versionはデフォルト奈良版に戻す
+  setChecked("version","奈良版");
+  setPatternEnabled(false);
+  calc();
+});
+document.getElementById("recalcBtn").addEventListener("click", calc);
+form.addEventListener("change", calc);
+
+// 初期表示
+setRuleHint();
+calc();
+</script>
+</body>
+</html>
