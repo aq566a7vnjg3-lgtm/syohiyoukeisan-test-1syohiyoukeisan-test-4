@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>諸費用 自動計算（奈良版/京都版）</title>
+<title>諸費用 自動計算（地域選択：HC奈良中央 / HC南京都）</title>
 <style>
   :root{
-    --bg:#fbf6b8;
+    --bg:#fbf6b8; /* JSで切替 */
     --card:#ffffff;
     --border:#d5d9df;
     --muted:#5b6470;
@@ -21,6 +21,7 @@
     font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
     background:var(--bg);
     color:#111;
+    transition: background-color .2s ease;
   }
   .wrap{ max-width:980px; margin:14px auto 28px; padding:0 12px; }
   .top{
@@ -177,15 +178,23 @@
   <form id="feeForm">
     <div class="grid">
 
-      <!-- ★追加：冒頭でバージョン選択 -->
+      <!-- ★名称変更：地域選択 / 選択肢名称変更 -->
       <section class="card span2">
-        <h3><span class="chip">0</span> バージョン選択</h3>
+        <h3><span class="chip">0</span> 地域選択</h3>
         <div class="options cols2">
-          <label class="opt"><input type="radio" name="version" value="奈良版" checked><span>奈良県バージョン</span><small>県外判定：奈良県以外</small></label>
-          <label class="opt"><input type="radio" name="version" value="京都版"><span>京都府バージョン</span><small>県外判定：京都府以外 / 普通車は全て書類代行</small></label>
+          <label class="opt">
+            <input type="radio" name="region" value="HC奈良中央" checked>
+            <span>HC奈良中央</span>
+            <small>県外判定：奈良県以外 / 普通車+奈良県はOSS自動</small>
+          </label>
+          <label class="opt">
+            <input type="radio" name="region" value="HC南京都">
+            <span>HC南京都</span>
+            <small>県外判定：京都府以外 / 普通車は全て書類代行</small>
+          </label>
         </div>
         <div class="noteSmall">
-          ※バージョンを切り替えると「申請方法ルール」と「県外費用の判定」が切り替わります。
+          ※地域で「基準府県」「普通車の申請方法ルール」「背景色」が切り替わります。
         </div>
       </section>
 
@@ -452,38 +461,44 @@ function enforcePlateRules(){
   }
 }
 
-/**
- * ★ここが今回の要件
- * - バージョンにより「基準府県」と「普通車の申請方法ルール」を切替
- *   奈良版：基準=奈良県／普通車&奈良県=OSS自動、奈良県以外=書類代行固定
- *   京都版：基準=京都府／普通車は全て書類代行（OSS不可）
- * - 県外費用は「基準府県以外」を県外として +10,000
- */
-function getBasePrefByVersion(){
-  return (getVal("version") === "京都版") ? "京都府" : "奈良県";
+/** ===== 地域により基準府県＆背景色を切替 ===== **/
+function getBasePrefByRegion(){
+  return (getVal("region") === "HC南京都") ? "京都府" : "奈良県";
+}
+function applyBackgroundByRegion(){
+  const region = getVal("region") || "HC奈良中央";
+  // 要望：奈良=黄色 / 南京都=水色
+  const bg = (region === "HC南京都") ? "#bfe8ff" : "#fbf6b8";
+  document.documentElement.style.setProperty("--bg", bg);
 }
 function setRuleHint(){
-  const v = getVal("version") || "奈良版";
-  const base = getBasePrefByVersion();
-  if(v === "京都版"){
+  const region = getVal("region") || "HC奈良中央";
+  const base = getBasePrefByRegion();
+  if(region === "HC南京都"){
     ruleHint.innerHTML =
-      `現在：<span class="pillTitle"><b>京都府バージョン</b></span><br>
+      `現在：<span class="pillTitle"><b>HC南京都</b></span><br>
        ・普通車は<strong>すべて書類代行</strong><br>
        ・県外判定：<strong>${base}以外</strong>は県外費用 10,000円`;
   } else {
     ruleHint.innerHTML =
-      `現在：<span class="pillTitle"><b>奈良県バージョン</b></span><br>
+      `現在：<span class="pillTitle"><b>HC奈良中央</b></span><br>
        ・普通車＋奈良県は<strong>OSS自動選択</strong><br>
        ・県外判定：<strong>${base}以外</strong>は県外費用 10,000円`;
   }
 }
 
+/**
+ * - HC奈良中央：基準=奈良県、普通車+奈良県=OSS自動、それ以外=書類代行固定
+ * - HC南京都：基準=京都府、普通車は常に書類代行（OSS不可）
+ * - 軽自動車：基準府県以外は書類代行固定（両地域共通）
+ */
 function updateApplyRules(){
   const car = getVal("car");
   const pref = getVal("pref");
-  const version = getVal("version") || "奈良版";
-  const basePref = getBasePrefByVersion();
+  const region = getVal("region") || "HC奈良中央";
+  const basePref = getBasePrefByRegion();
 
+  applyBackgroundByRegion();
   setRuleHint();
 
   if(!car || !pref){
@@ -497,31 +512,29 @@ function updateApplyRules(){
   const isOut = !isBase;
   let lockMsg = "";
 
-  // ---- 普通車ルール（バージョンで違う） ----
   if(car === "普通車"){
-    if(version === "京都版"){
-      // ★京都版：普通車は常に書類代行
+    if(region === "HC南京都"){
+      // ★南京都：普通車は必ず書類代行
       applyOSS.disabled = true;
       applyOSSLabel.classList.add("disabled");
       setChecked("apply","書類代行");
-      lockMsg = `※京都版：普通車は書類代行固定（県外判定は${basePref}基準）`;
+      lockMsg = `※HC南京都：普通車は書類代行固定（県外判定は${basePref}基準）`;
     } else {
-      // ★奈良版：奈良県ならOSS自動、奈良県以外は書類代行固定
+      // ★奈良中央：奈良県ならOSS自動、それ以外は書類代行固定
       if(isBase){
         applyOSS.disabled = false;
         applyOSSLabel.classList.remove("disabled");
         setChecked("apply","OSS");
-        lockMsg = "※奈良版：普通車＋奈良県はOSSを自動選択";
+        lockMsg = "※HC奈良中央：普通車＋奈良県はOSSを自動選択";
       } else {
         applyOSS.disabled = true;
         applyOSSLabel.classList.add("disabled");
         setChecked("apply","書類代行");
-        lockMsg = `※奈良版：普通車で奈良県以外は書類代行固定（県外費用10,000円加算）`;
+        lockMsg = `※HC奈良中央：普通車で奈良県以外は書類代行固定（県外費用10,000円加算）`;
       }
     }
   }
 
-  // ---- 軽自動車ルール（両版共通：基準府県以外は書類代行固定） ----
   if(car === "軽自動車"){
     if(isOut){
       applyOSS.disabled = true;
@@ -601,8 +614,8 @@ function buildSub(label, yen){
 function calc(){
   updateConditionalUI();
 
-  const version = getVal("version") || "奈良版";
-  const basePref = getBasePrefByVersion();
+  const region = getVal("region") || "HC奈良中央";
+  const basePref = getBasePrefByRegion();
 
   const car = getVal("car");
   const pref = getVal("pref");
@@ -617,7 +630,7 @@ function calc(){
 
   const needPattern = (plate === "希望図柄番号");
 
-  const required = ["version","car","pref","shakoNeed","apply","plate","plateStyle","trade"];
+  const required = ["region","car","pref","shakoNeed","apply","plate","plateStyle","trade"];
   if(trade === "あり") required.push("owner");
   if(trade === "あり" && owner === "信販会社") required.push("loan");
   if(needPattern) required.push("pattern");
@@ -767,8 +780,7 @@ function calc(){
 
 document.getElementById("resetBtn").addEventListener("click", ()=>{
   form.reset();
-  // versionはデフォルト奈良版に戻す
-  setChecked("version","奈良版");
+  setChecked("region","HC奈良中央");
   setPatternEnabled(false);
   calc();
 });
@@ -776,6 +788,7 @@ document.getElementById("recalcBtn").addEventListener("click", calc);
 form.addEventListener("change", calc);
 
 // 初期表示
+applyBackgroundByRegion();
 setRuleHint();
 calc();
 </script>
